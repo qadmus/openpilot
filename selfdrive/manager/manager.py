@@ -35,6 +35,9 @@ def manager_init():
     ("HasAcceptedTerms", "0"),
     ("LastUpdateTime", datetime.datetime.utcnow().isoformat().encode('utf8')),
     ("OpenpilotEnabledToggle", "1"),
+    ("Upload", "0"),
+    ("DisableUpdates", "1"),
+    ("DisablePowerDown", "1"),
   ]
 
   if TICI:
