@@ -95,8 +95,6 @@ FINGERPRINTS = {
   }],
 }
 
-STEER_THRESHOLD = 1.0
-
 DBC = {
   CAR.HOLDEN_ASTRA: dbc_dict('gm_global_a_powertrain', 'gm_global_a_object', chassis_dbc='gm_global_a_chassis'),
   CAR.VOLT: dbc_dict('gm_global_a_powertrain', 'gm_global_a_object', chassis_dbc='gm_global_a_chassis'),
@@ -105,3 +103,5 @@ DBC = {
   CAR.CADILLAC_ATS: dbc_dict('gm_global_a_powertrain', 'gm_global_a_object', chassis_dbc='gm_global_a_chassis'),
   CAR.BUICK_REGAL: dbc_dict('gm_global_a_powertrain', 'gm_global_a_object', chassis_dbc='gm_global_a_chassis'),
 }
+
+STEER_THRESHOLD = 0.4
