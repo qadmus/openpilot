@@ -26,6 +26,7 @@ keys = {
   b"CarVin": [TxType.CLEAR_ON_MANAGER_START, TxType.CLEAR_ON_PANDA_DISCONNECT],
   b"CommunityFeaturesToggle": [TxType.PERSISTENT],
   b"EndToEndToggle": [TxType.PERSISTENT],
+  b"EVCoastToggle": [TxType.PERSISTENT],
   b"CompletedTrainingVersion": [TxType.PERSISTENT],
   b"DisablePowerDown": [TxType.PERSISTENT],
   b"DisableUpdates": [TxType.PERSISTENT],

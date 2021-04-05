@@ -62,6 +62,11 @@ QWidget * toggles_panel() {
                                            "\U0001f96c Disable use of lanelines (Alpha) \U0001f96c",
                                            "In this mode openpilot will ignore lanelines and just drive how it thinks a human would.",
                                            "../assets/offroad/icon_road.png"));
+  toggles_list->addWidget(horizontal_line());
+  toggles_list->addWidget(new ParamControl("EVCoastToggle",
+                                           "\U0001F30E EV Coasting (Beta) \U0001F30E",
+                                           "Coast up to 10 mph above cruise setpoint. SAVE THE PLANET.",
+                                           "../assets/offroad/icon_speed_limit.png"));
 
   bool record_lock = Params().getBool("RecordFrontLock");
   record_toggle->setEnabled(!record_lock);
@@ -88,7 +93,7 @@ DevicePanel::DevicePanel(QWidget* parent) : QWidget(parent) {
 
   offroad_btns.append(new ButtonControl("Driver Camera", "PREVIEW",
                                    "Preview the driver facing camera to help optimize device mounting position for best driver monitoring experience. (vehicle must be off)",
-                                   [=]() { 
+                                   [=]() {
                                       Params().putBool("IsDriverViewEnabled", true);
                                       GLWindow::ui_state.scene.driver_view = true; }
                                     ));

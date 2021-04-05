@@ -27,6 +27,7 @@ def manager_init():
   default_params = [
     ("CommunityFeaturesToggle", "0"),
     ("EndToEndToggle", "0"),
+    ("EVCoastToggle", "1"),
     ("CompletedTrainingVersion", "0"),
     ("IsRHD", "0"),
     ("IsMetric", "0"),
