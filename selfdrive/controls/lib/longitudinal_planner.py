@@ -79,7 +79,6 @@ class Planner():
     self.a_cruise = 0.0
 
     self.source = Source.cruiseCoast
-    self.cruise_source = Source.cruiseCoast
 
     self.fcw_checker = FCWChecker()
     self.path_x = np.arange(192)
@@ -89,86 +88,29 @@ class Planner():
     self.params = Params()
     self.first_loop = True
 
-  def choose_solution(self, v_cruise_setpoint, enabled):
+  def choose_solution(self, enabled, solutions, v_cruise_setpoint):
     if enabled:
-      solutions = {self.cruise_source: self.v_cruise}
       if self.mpc1.prev_lead_status:
-        solutions[Source.mpc1] = self.mpc1.v_mpc
+        solutions[Source.mpc1] = (self.mpc1.v_mpc, self.mpc1.a_mpc)
       if self.mpc2.prev_lead_status:
-        solutions[Source.mpc2] = self.mpc2.v_mpc
+        solutions[Source.mpc2] = (self.mpc2.v_mpc, self.mpc2.a_mpc)
 
-      slowest = min(solutions, key=solutions.get)
-      self.source = slowest
-      # Choose lowest of MPC and cruise
-      if slowest == Source.mpc1:
-        self.v_acc = self.mpc1.v_mpc
-        self.a_acc = self.mpc1.a_mpc
-      elif slowest == Source.mpc2:
-        self.v_acc = self.mpc2.v_mpc
-        self.a_acc = self.mpc2.a_mpc
-      elif slowest == self.cruise_source:
-        self.v_acc = self.v_cruise
-        self.a_acc = self.a_cruise
+      # Choose min(brake, gas, mpc1, mpc2)
+      slowest = 99.
+      for source in solutions.keys():
+        if slowest >= solutions[source][0]:
+          self.source = source
+          self.v_acc, self.a_acc = solutions[self.source]
+          self.v_acc = max(self.v_acc, 0) # cannot decelerate below 0
 
     self.v_acc_future = min([self.mpc1.v_mpc_future, self.mpc2.v_mpc_future, v_cruise_setpoint])
-
-  def choose_cruise(self, v_ego, a_ego, v_cruise_setpoint, accel_limits_turns, jerk_limits, gasbrake):
-    # WARNING: Logic is carefully verified. On change, review test_longitudinal.py output!
-
-    # Toggle for standard cruise control
-    if self.params.get('EVCoastToggle') == b'0':
-      self.cruise_source = Source.cruiseGas
-      return speed_smoother(self.v_acc_start, self.a_acc_start,
-                            v_cruise_setpoint,
-                            accel_limits_turns[1], accel_limits_turns[0],
-                            jerk_limits[1], jerk_limits[0],
-                            LON_MPC_STEP)
-
-    # If coasting, reset starting state for gas and brake plans
-    if self.source == Source.cruiseCoast:
-      self.v_acc_start = v_ego
-      self.a_acc_start = a_ego
-    elif self.source in [Source.mpc1, Source.mpc2]:
-      self.cruise_source = Source.cruiseGas if gasbrake >= 0 else Source.cruiseBrake
-
-    # Coast to (current state)
-    v_coast, a_coast = v_ego, a_ego
-    # Gas to (v_cruise_setpoint)
-    v_gas,   a_gas   = speed_smoother(self.v_acc_start, self.a_acc_start,
-                                      v_cruise_setpoint,
-                                      accel_limits_turns[1], accel_limits_turns[0],
-                                      jerk_limits[1], jerk_limits[0],
-                                      LON_MPC_STEP)
-    # Brake to (v_cruise_setpoint + COAST_SPEED)
-    v_brake, a_brake = speed_smoother(self.v_acc_start, self.a_acc_start,
-                                      v_cruise_setpoint + COAST_SPEED,
-                                      accel_limits_turns[1], accel_limits_turns[0],
-                                      jerk_limits[1], jerk_limits[0],
-                                      LON_MPC_STEP)
-
-    cruise = {
-      Source.cruiseCoast: (v_coast, a_coast),
-      Source.cruiseGas: (v_gas, a_gas),
-      Source.cruiseBrake: (v_brake, a_brake),
-    }
-
-    # Entry conditions
-    if gasbrake == 0:
-      if a_brake < a_coast:
-        self.cruise_source = Source.cruiseBrake
-      elif a_gas > a_coast:
-        self.cruise_source = Source.cruiseGas
-      elif (a_brake >= a_coast >= a_gas):
-        self.cruise_source = Source.cruiseCoast
-
-    return cruise[self.cruise_source]
 
   def update(self, sm, CP):
     """Gets called when new radarState is available"""
     cur_time = sec_since_boot()
     v_ego = sm['carState'].vEgo
     a_ego = sm['carState'].aEgo
-    gasbrake = sm['carControl'].actuators.gas - sm['carControl'].actuators.brake
+    # gasbrake = sm['carControl'].actuators.gas - sm['carControl'].actuators.brake
 
     long_control_state = sm['controlsState'].longControlState
     v_cruise_kph = sm['controlsState'].vCruise
@@ -197,16 +139,20 @@ class Planner():
         accel_limits_turns[1] = min(accel_limits_turns[1], AWARENESS_DECEL)
         accel_limits_turns[0] = min(accel_limits_turns[0], accel_limits_turns[1])
 
-      self.v_cruise, self.a_cruise = self.choose_cruise(v_ego,
-                                                        a_ego,
-                                                        v_cruise_setpoint,
-                                                        accel_limits_turns,
-                                                        jerk_limits,
-                                                        gasbrake)
-
-      # cruise speed can't be negative even is user is distracted
-      self.v_cruise = max(self.v_cruise, 0.)
-
+      cruise = {
+        # Gas to (v_cruise_setpoint)
+        Source.cruiseGas:   speed_smoother(self.v_acc_start, self.a_acc_start,
+                                           v_cruise_setpoint,
+                                           accel_limits_turns[1], accel_limits_turns[0],
+                                           jerk_limits[1], jerk_limits[0],
+                                           LON_MPC_STEP),
+        # Brake to (v_cruise_setpoint + COAST_SPEED)
+        Source.cruiseBrake: speed_smoother(self.v_acc_start, self.a_acc_start,
+                                           v_cruise_setpoint + COAST_SPEED,
+                                           accel_limits_turns[1], accel_limits_turns[0],
+                                           jerk_limits[1], jerk_limits[0],
+                                           LON_MPC_STEP),
+      }
     else:
       starting = long_control_state == LongCtrlState.starting
       a_ego = min(a_ego, 0.0)
@@ -218,7 +164,6 @@ class Planner():
       self.a_acc_start = reset_accel
       self.v_cruise = reset_speed
       self.a_cruise = reset_accel
-      self.cruise_source = Source.cruiseCoast
 
     self.mpc1.set_cur_state(self.v_acc_start, self.a_acc_start)
     self.mpc2.set_cur_state(self.v_acc_start, self.a_acc_start)
@@ -226,7 +171,7 @@ class Planner():
     self.mpc1.update(sm['carState'], lead_1)
     self.mpc2.update(sm['carState'], lead_2)
 
-    self.choose_solution(v_cruise_setpoint, enabled)
+    self.choose_solution(enabled, cruise, v_cruise_setpoint)
 
     # determine fcw
     if self.mpc1.new_lead:
@@ -242,7 +187,7 @@ class Planner():
     if self.fcw:
       cloudlog.info("FCW triggered %s", self.fcw_checker.counters)
 
-    # Interpolate 0.05 seconds and save as starting point for next iteration
+    # Timestep to next starting point
     a_acc_sol = self.a_acc_start + (CP.radarTimeStep / LON_MPC_STEP) * (self.a_acc - self.a_acc_start)
     v_acc_sol = self.v_acc_start + CP.radarTimeStep * (a_acc_sol + self.a_acc_start) / 2.0
     self.v_acc_next = v_acc_sol

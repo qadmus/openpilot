@@ -1,6 +1,6 @@
 from cereal import log
 from common.numpy_fast import clip, interp
-from common.params import Params
+# from common.params import Params
 from selfdrive.controls.lib.pid import PIController
 
 LongCtrlState = log.ControlsState.LongControlState
@@ -93,13 +93,13 @@ class LongControl():
       self.pid.pos_limit = gas_max
       self.pid.neg_limit = - brake_max
 
-      if Params().get('EVCoastToggle') == b'1':
-        if source in [Source.cruiseBrake, Source.cruiseCoast]:
-          self.pid.pos_limit = 0.
-          self.pid.i = max(self.pid.i, 0)
-        if source in [Source.cruiseGas, Source.cruiseCoast]:
-          self.pid.neg_limit = 0.
-          self.pid.i = min(self.pid.i, 0)
+      # if Params().get('EVCoastToggle') == b'1':
+      if source == Source.cruiseBrake:
+        self.pid.pos_limit = 0.
+        #self.pid.i = min(self.pid.i, 0)
+      elif source == Source.cruiseGas:
+        self.pid.neg_limit = 0.
+        #self.pid.i = max(self.pid.i, 0)
 
       # Toyota starts braking more when it thinks you want to stop
       # Freeze the integrator so we don't accelerate to compensate, and don't allow positive acceleration

@@ -96,4 +96,5 @@ def speed_smoother(vEgo, aEgo, vT, aMax, aMin, jMax, jMin, ts):
   vEgo *= -1 if flipped else 1
   aEgo *= -1 if flipped else 1
 
-  return float(vEgo), float(aEgo)
+  # Don't decelerate below 0
+  return (float(max(vEgo,0)), float(aEgo))
