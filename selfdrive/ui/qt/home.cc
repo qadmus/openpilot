@@ -98,8 +98,8 @@ OffroadHome::OffroadHome(QWidget* parent) : QFrame(parent) {
   drive->setFixedSize(800, 800);
   statsAndSetup->addWidget(drive);
 
-  SetupWidget* setup = new SetupWidget;
-  statsAndSetup->addWidget(setup);
+  // SetupWidget* setup = new SetupWidget;
+  // statsAndSetup->addWidget(setup);
 
   QWidget* statsAndSetupWidget = new QWidget();
   statsAndSetupWidget->setLayout(statsAndSetup);
