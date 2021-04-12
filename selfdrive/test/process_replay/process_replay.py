@@ -265,7 +265,7 @@ CONFIGS = [
     proc_name="plannerd",
     pub_sub={
       "modelV2": ["lateralPlan"], "radarState": ["longitudinalPlan"],
-      "carState": [], "controlsState": [],
+      "carState": [], "controlsState": [], "carControl": []
     },
     ignore=["logMonoTime", "valid", "longitudinalPlan.processingDelay"],
     init_callback=get_car_params,
