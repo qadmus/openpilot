@@ -72,6 +72,11 @@ TogglesPanel::TogglesPanel(QWidget *parent) : QWidget(parent) {
                                    "In this mode openpilot will ignore lanelines and just drive how it thinks a human would.",
                                    "../assets/offroad/icon_road.png",
                                    this));
+  toggles.append(new ParamControl("CoastToggle",
+                                  "\U0001F30E Coasting in Cruise (Beta) \U0001F30E",
+                                  "Coast up to 10 mph above cruise setpoint. SAVE THE PLANET.",
+                                  "../assets/offroad/icon_speed_limit.png",
+                                  this));
 
   if (Hardware::TICI()) {
     toggles.append(new ParamControl("EnableWideCamera",
