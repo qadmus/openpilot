@@ -21,6 +21,10 @@ class CarInterface(CarInterfaceBase):
     ret.carName = "gm"
     ret.safetyModel = car.CarParams.SafetyModel.gm
     ret.enableCruise = False  # stock cruise control is kept off
+    ret.stoppingControl = True
+    ret.startAccel = 0.8
+    ret.steerLimitTimer = 0.4
+    ret.radarTimeStep = 1/15  # GM radar runs at 15Hz instead of standard 20Hz
 
     # GM port is a community feature
     # TODO: make a port that uses a car harness and it only intercepts the camera
@@ -33,13 +37,19 @@ class CarInterface(CarInterfaceBase):
     ret.openpilotLongitudinalControl = ret.enableCamera
     tire_stiffness_factor = 0.444  # not optimized yet
 
-    # Start with a baseline lateral tuning for all GM vehicles. Override tuning as needed in each model section below.
+    # Default lateral tuning.
     ret.minSteerSpeed = 7 * CV.MPH_TO_MS
     ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
     ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.2], [0.00]]
-    ret.lateralTuning.pid.kf = 0.00004   # full torque for 20 deg at 80mph means 0.00007818594
+    ret.lateralTuning.pid.kf = 0.00004  # full torque for 20 deg at 80mph means 0.00007818594
     ret.steerRateCost = 1.0
     ret.steerActuatorDelay = 0.1  # Default delay, not measured yet
+
+    # Default longitudinal tuning.
+    ret.longitudinalTuning.kpBP = [5., 35.]
+    ret.longitudinalTuning.kpV = [2.4, 1.5]
+    ret.longitudinalTuning.kiBP = [0.]
+    ret.longitudinalTuning.kiV = [0.36]
 
     if candidate == CAR.VOLT:
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
@@ -47,8 +57,25 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 1607. + STD_CARGO_KG
       ret.wheelbase = 2.69
       ret.steerRatio = 15.7
+      tire_stiffness_factor = 0.469 # Stock Michelin Energy Saver A/S
       ret.steerRatioRear = 0.
-      ret.centerToFront = ret.wheelbase * 0.4  # wild guess
+      ret.centerToFront = 0.45 * ret.wheelbase # from Volt Gen 1
+
+      ret.lateralTuning.init('indi')
+      ret.lateralTuning.indi.innerLoopGainBP = [10., 30.]
+      ret.lateralTuning.indi.innerLoopGainV = [1., 2.] # rate
+      ret.lateralTuning.indi.outerLoopGainBP = [0.]
+      ret.lateralTuning.indi.outerLoopGainV = [20.] # angle
+      ret.lateralTuning.indi.timeConstantBP = [0.]
+      ret.lateralTuning.indi.timeConstantV = [.3]
+
+      # effectiveness = 21.9 - 0.610 * (m/s)
+      ret.lateralTuning.indi.actuatorEffectivenessBP = [0., 31.] # chosen for minimum 3.0 effectiveness
+      ret.lateralTuning.indi.actuatorEffectivenessV = [21.9, 3.]
+      ret.steerActuatorDelay = 0.2
+
+      ret.longitudinalTuning.kpV = [1.7, 1.3]
+      ret.longitudinalTuning.kiV = [0.36]
 
     elif candidate == CAR.MALIBU:
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
@@ -100,17 +127,6 @@ class CarInterface(CarInterfaceBase):
     # mass and CG position, so all cars will have approximately similar dyn behaviors
     ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront,
                                                                          tire_stiffness_factor=tire_stiffness_factor)
-
-    ret.longitudinalTuning.kpBP = [5., 35.]
-    ret.longitudinalTuning.kpV = [2.4, 1.5]
-    ret.longitudinalTuning.kiBP = [0.]
-    ret.longitudinalTuning.kiV = [0.36]
-
-    ret.stoppingControl = True
-    ret.startAccel = 0.8
-
-    ret.steerLimitTimer = 0.4
-    ret.radarTimeStep = 0.0667  # GM radar runs at 15Hz instead of standard 20Hz
 
     return ret
 

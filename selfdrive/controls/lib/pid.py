@@ -1,5 +1,6 @@
 import numpy as np
 from common.numpy_fast import clip, interp
+from common.op_params import opParams
 
 def apply_deadzone(error, deadzone):
   if error > deadzone:
@@ -57,6 +58,10 @@ class PIController():
 
   def update(self, setpoint, measurement, speed=0.0, check_saturation=True, override=False, feedforward=0., deadzone=0., freeze_integrator=False):
     self.speed = speed
+
+    op_params = opParams()
+    self._k_p = ([5., 35.], [op_params.get('LONG_P_05'), op_params.get('LONG_P_35')])
+    self._k_i = ([0.],[op_params.get('LONG_I')])
 
     error = float(apply_deadzone(setpoint - measurement, deadzone))
     self.p = error * self.k_p
