@@ -5,6 +5,7 @@ from cereal import log
 from common.realtime import DT_CTRL
 from common.numpy_fast import clip, interp
 from selfdrive.controls.lib.drive_helpers import get_steer_max
+from common.op_params import opParams
 
 
 class LatControlINDI():
@@ -79,6 +80,16 @@ class LatControlINDI():
   def update(self, active, CI, VM, params, lat_plan):
     CP = CI.CP
     CS = CI.CS.out
+
+    op_params = opParams()
+    self._RC = (CP.lateralTuning.indi.timeConstantBP, [op_params.get('TIME')])
+    effect_override = op_params.get('EFFECT_OVERRIDE')
+    if effect_override != 0.:
+      self._G = ([0.],[effect_override])
+    else:
+      self._G = (CP.lateralTuning.indi.actuatorEffectivenessBP, CP.lateralTuning.indi.actuatorEffectivenessV)
+    self._outer_loop_gain = (CP.lateralTuning.indi.outerLoopGainBP, [op_params.get('ANGLE')])
+    self._inner_loop_gain = (CP.lateralTuning.indi.innerLoopGainBP, [1., op_params.get('RATE')])
 
     # Update Kalman filter
     y = np.array([[math.radians(CS.steeringAngleDeg)], [math.radians(CS.steeringRateDeg)]])
