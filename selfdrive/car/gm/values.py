@@ -15,12 +15,12 @@ class CarControllerParams():
   STEER_DRIVER_FACTOR = 100     # from dbc
   NEAR_STOP_BRAKE_PHASE = 0.5  # m/s, more aggressive braking near full stop
 
-    # Takes case of "Service Adaptive Cruise" and "Service Front Camera"
-    # dashboard messages.
+  # Takes case of "Service Adaptive Cruise" and "Service Front Camera"
+  # dashboard messages.
   ADAS_KEEPALIVE_STEP = 100
   CAMERA_KEEPALIVE_STEP = 100
 
-    # pedal lookups, only for Volt
+  # pedal lookups, only for Volt
   MAX_GAS = 3072              # Only a safety limit
   ZERO_GAS = 2048
   MAX_BRAKE = 350             # Should be around 3.5m/s^2, including regen
