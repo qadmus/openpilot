@@ -7,6 +7,7 @@ from common.numpy_fast import clip, interp
 from selfdrive.car.toyota.values import CarControllerParams
 from selfdrive.car import apply_toyota_steer_torque_limits
 from selfdrive.controls.lib.drive_helpers import get_steer_max
+from common.op_params import opParams
 
 
 class LatControlINDI():
@@ -82,6 +83,16 @@ class LatControlINDI():
 
   def update(self, active, CS, CP, VM, params, lat_plan):
     self.speed = CS.vEgo
+
+    op_params = opParams()
+    self._RC = (CP.lateralTuning.indi.timeConstantBP, [op_params.get('INDI_TIME')])
+    if op_params.get('INDI_EFFECT_OVERRIDE') != 0.:
+      self._G = ([0.],[op_params.get('INDI_EFFECT_OVERRIDE')])
+    else:
+      self._G = (CP.lateralTuning.indi.actuatorEffectivenessBP, [op_params.get('INDI_EFFECT_LOW'), op_params.get('INDI_EFFECT_HIGH')])
+    self._outer_loop_gain = (CP.lateralTuning.indi.outerLoopGainBP, [op_params.get('INDI_ANGLE_GAIN')])
+    self._inner_loop_gain = (CP.lateralTuning.indi.innerLoopGainBP, [1., op_params.get('INDI_RATE_GAIN')])
+
     # Update Kalman filter
     y = np.array([[math.radians(CS.steeringAngleDeg)], [math.radians(CS.steeringRateDeg)]])
     self.x = np.dot(self.A_K, self.x) + np.dot(self.K, y)
