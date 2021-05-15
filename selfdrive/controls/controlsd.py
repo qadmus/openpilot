@@ -231,7 +231,7 @@ class Controls:
     if not self.sm['liveParameters'].valid:
       self.events.add(EventName.vehicleModelInvalid)
 
-    if len(self.sm['radarState'].radarErrors):
+    if len(self.sm['radarState'].radarErrors) or self.sm.rcv_time['radarState'] == 0:
       self.events.add(EventName.radarFault)
     elif not self.sm.valid["pandaState"]:
       self.events.add(EventName.usbError)
