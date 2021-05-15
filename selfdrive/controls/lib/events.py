@@ -703,6 +703,7 @@ EVENTS: Dict[int, Dict[str, Union[Alert, Callable[[Any, messaging.SubMaster, boo
   },
 
   EventName.radarFault: {
+    ET.PERMANENT: NormalPermanentAlert("Radar Power", "Build the interceptor"),
     ET.SOFT_DISABLE: SoftDisableAlert("Radar Error: Restart the Car"),
     ET.NO_ENTRY: NoEntryAlert("Radar Error: Restart the Car"),
   },
