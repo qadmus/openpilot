@@ -63,12 +63,13 @@ class CarInterface(CarInterfaceBase):
 
       ret.lateralTuning.init('indi')
       ret.lateralTuning.indi.outerLoopGainBP = [0.]
-      ret.lateralTuning.indi.outerLoopGainV = [50.] # angle
+      ret.lateralTuning.indi.outerLoopGainV = [80.] # angle
       ret.lateralTuning.indi.innerLoopGainBP = [0.]
-      ret.lateralTuning.indi.innerLoopGainV = [1.] # rate
+      ret.lateralTuning.indi.innerLoopGainV = [20.] # rate
       ret.lateralTuning.indi.timeConstantBP = [0.]
-      ret.lateralTuning.indi.timeConstantV = [2.]
-      # Subjectively found (25,4) (35,3) (50,2) (65,1)
+      ret.lateralTuning.indi.timeConstantV = [0.9]
+      # Subjectively found (mph,efF): (25,4) (35,3) (50,2) (65,1)
+      # m/s: (11.18,4) (15.65,3) (22.35,2) (29.06,1)
       # Fit R^2 0.9976: 0.000498688 x^2 - 0.118504 x + 6.61549
       ret.lateralTuning.indi.actuatorEffectivenessBP = [0. * CV.MPH_TO_MS,
                                                         15. * CV.MPH_TO_MS,

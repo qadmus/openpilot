@@ -49,7 +49,16 @@ class LatControlINDI():
 
   @property
   def G(self):
-    return interp(self.speed, self._G[0], self._G[1])
+    if len(self._G[0]) > 1:
+      if self.speed <= 1:
+        return 11.5
+      elif self.speed >= 29.8264:
+        return 1
+      else:
+        return 11.4973 - 3.09163 * np.log(self.speed)
+    else:
+      return self._G[1][0]
+    #return interp(self.speed, self._G[0], self._G[1])
 
   @property
   def outer_loop_gain(self):
