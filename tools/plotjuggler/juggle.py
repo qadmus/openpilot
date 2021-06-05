@@ -42,11 +42,11 @@ def start_juggler(fn=None, dbc=None, layout=None):
   extra_args = " ".join(extra_args)
   subprocess.call(f'{pj} --plugin_folders {os.path.join(juggle_dir, "bin")} {extra_args}', shell=True, env=env, cwd=juggle_dir)
 
-def juggle_route(route_name, segment_number, segment_count, qlog, can, layout):
+def juggle_route(route_name, segment_number, segment_count, qlog, can, layout, path):
   if route_name.startswith("http://") or route_name.startswith("https://") or os.path.isfile(route_name):
     logs = [route_name]
   else:
-    r = Route(route_name)
+    r = Route(route_name, data_dir=path)
     logs = r.qlog_paths() if qlog else r.log_paths()
 
   if segment_number is not None:
@@ -90,6 +90,7 @@ def get_arg_parser():
   parser = argparse.ArgumentParser(description="PlotJuggler plugin for reading openpilot logs",
                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+  parser.add_argument("--path", help="Path to local segments")
   parser.add_argument("--qlog", action="store_true", help="Use qlogs")
   parser.add_argument("--can", action="store_true", help="Parse CAN data")
   parser.add_argument("--stream", action="store_true", help="Start PlotJuggler without a route to stream data using Cereal")
@@ -109,4 +110,4 @@ if __name__ == "__main__":
   if args.stream:
     start_juggler()
   else:
-    juggle_route(args.route_name, args.segment_number, args.segment_count, args.qlog, args.can, args.layout)
+    juggle_route(args.route_name, args.segment_number, args.segment_count, args.qlog, args.can, args.layout, args.path)
