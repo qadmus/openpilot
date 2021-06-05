@@ -36,6 +36,7 @@ common/spinner.py
 common/text_window.py
 common/cython_hacks.py
 common/SConscript
+common/op_params.py
 
 common/kalman/.gitignore
 common/kalman/*

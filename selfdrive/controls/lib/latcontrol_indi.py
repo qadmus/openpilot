@@ -4,9 +4,8 @@ import numpy as np
 from cereal import log
 from common.realtime import DT_CTRL
 from common.numpy_fast import clip, interp
-from selfdrive.car.toyota.values import CarControllerParams
-from selfdrive.car import apply_toyota_steer_torque_limits
 from selfdrive.controls.lib.drive_helpers import get_steer_max
+from common.op_params import opParams
 
 
 class LatControlINDI():
@@ -34,8 +33,6 @@ class LatControlINDI():
     self.A_K = A - np.dot(K, C)
     self.x = np.array([[0.], [0.], [0.]])
 
-    self.enforce_rate_limit = CP.carName == "toyota"
-
     self._RC = (CP.lateralTuning.indi.timeConstantBP, CP.lateralTuning.indi.timeConstantV)
     self._G = (CP.lateralTuning.indi.actuatorEffectivenessBP, CP.lateralTuning.indi.actuatorEffectivenessV)
     self._outer_loop_gain = (CP.lateralTuning.indi.outerLoopGainBP, CP.lateralTuning.indi.outerLoopGainV)
@@ -52,7 +49,16 @@ class LatControlINDI():
 
   @property
   def G(self):
-    return interp(self.speed, self._G[0], self._G[1])
+    if len(self._G[0]) > 1:
+      if self.speed <= 1:
+        return 11.5
+      elif self.speed >= 29.8264:
+        return 1
+      else:
+        return 11.4973 - 3.09163 * np.log(self.speed)
+    else:
+      return self._G[1][0]
+    #return interp(self.speed, self._G[0], self._G[1])
 
   @property
   def outer_loop_gain(self):
@@ -80,8 +86,20 @@ class LatControlINDI():
 
     return self.sat_count > self.sat_limit
 
-  def update(self, active, CS, CP, VM, params, lat_plan):
-    self.speed = CS.vEgo
+  def update(self, active, CI, VM, params, lat_plan):
+    CP = CI.CP
+    CS = CI.CS.out
+
+    op_params = opParams()
+    self._RC = (CP.lateralTuning.indi.timeConstantBP, [op_params.get('TIME')])
+    effect_override = op_params.get('EFFECT_OVERRIDE')
+    if effect_override != 0.:
+      self._G = ([0.],[effect_override])
+    else:
+      self._G = (CP.lateralTuning.indi.actuatorEffectivenessBP, CP.lateralTuning.indi.actuatorEffectivenessV)
+    self._outer_loop_gain = (CP.lateralTuning.indi.outerLoopGainBP, [op_params.get('ANGLE')])
+    self._inner_loop_gain = (CP.lateralTuning.indi.innerLoopGainBP, [1., op_params.get('RATE')])
+
     # Update Kalman filter
     y = np.array([[math.radians(CS.steeringAngleDeg)], [math.radians(CS.steeringRateDeg)]])
     self.x = np.dot(self.A_K, self.x) + np.dot(self.K, y)
@@ -101,7 +119,10 @@ class LatControlINDI():
 
       rate_des = VM.get_steer_from_curvature(-lat_plan.curvatureRate, CS.vEgo)
 
-      # Expected actuator value
+      # Actual last steer output after CarController torque limits
+      self.output_steer = CI.CC.apply_steer_last / CI.CC.params.STEER_MAX
+
+      # Expected actuator value by exponential moving average
       alpha = 1. - DT_CTRL / (self.RC + DT_CTRL)
       self.delayed_output = self.delayed_output * alpha + self.output_steer * (1. - alpha)
 
@@ -118,16 +139,7 @@ class LatControlINDI():
       if CS.steeringPressed and (delta_u * self.output_steer > 0):
         delta_u = 0
 
-      # Enforce rate limit
-      if self.enforce_rate_limit:
-        steer_max = float(CarControllerParams.STEER_MAX)
-        new_output_steer_cmd = steer_max * (self.delayed_output + delta_u)
-        prev_output_steer_cmd = steer_max * self.output_steer
-        new_output_steer_cmd = apply_toyota_steer_torque_limits(new_output_steer_cmd, prev_output_steer_cmd, prev_output_steer_cmd, CarControllerParams)
-        self.output_steer = new_output_steer_cmd / steer_max
-      else:
-        self.output_steer = self.delayed_output + delta_u
-
+      self.output_steer = self.delayed_output + delta_u
       steers_max = get_steer_max(CP, CS.vEgo)
       self.output_steer = clip(self.output_steer, -steers_max, steers_max)
 
