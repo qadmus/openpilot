@@ -51,60 +51,59 @@ def load_processed(file_name):
     return pickle.load(f)
 
 
-def load_and_process_rlogs(lrs, file_name):
+def load_and_process_rlogs(lr, file_name):
   data = [[]]
 
-  for lr in lrs:
-    v_ego, angle_offset, angle_steers, angle_rate, torque_cmd, eps_torque = None, None, None, None, None, None
-    last_time = 0
-    can_updated = False
+  v_ego, angle_offset, angle_steers, angle_rate, torque_cmd, eps_torque = None, None, None, None, None, None
+  last_time = 0
+  can_updated = False
 
-    signals = [
-      ("STEER_REQUEST", "STEERING_LKA", 0),
-      ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
-      ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
-      ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
-      ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
-      ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
-    ]
-    cp = CANParser("toyota_nodsu_pt_generated", signals, enforce_checks=False)  # todo: auto load dbc from logs
+  signals = [
+    ("STEER_REQUEST", "STEERING_LKA", 0),
+    ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
+    ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
+    ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
+    ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
+    ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
+  ]
+  cp = CANParser("toyota_nodsu_pt_generated", signals, enforce_checks=False)  # todo: auto load dbc from logs
 
-    all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
+  all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
-    for msg in tqdm(all_msgs):
-      if msg.which() == 'carState':
-        v_ego = msg.carState.vEgo
-        angle_steers = msg.carState.steeringAngleDeg  # this is offset from can by 1 frame. it's within acceptable margin of error and we get more accuracy for TSS2
-        angle_rate = msg.carState.steeringRateDeg
-        eps_torque = msg.carState.steeringTorqueEps
+  for msg in tqdm(all_msgs):
+    if msg.which() == 'carState':
+      v_ego = msg.carState.vEgo
+      angle_steers = msg.carState.steeringAngleDeg  # this is offset from can by 1 frame. it's within acceptable margin of error and we get more accuracy for TSS2
+      angle_rate = msg.carState.steeringRateDeg
+      eps_torque = msg.carState.steeringTorqueEps
 
-      elif msg.which() == 'liveParameters':
-        angle_offset = msg.liveParameters.angleOffsetDeg
+    elif msg.which() == 'liveParameters':
+      angle_offset = msg.liveParameters.angleOffsetDeg
 
-      if msg.which() != 'can':
-        continue
+    if msg.which() != 'can':
+      continue
 
-      cp_updated = cp.update_string(msg.as_builder().to_bytes())
-      for u in cp_updated:
-        if u == 0x2e4:  # STEERING_LKA
-          can_updated = True
+    cp_updated = cp.update_string(msg.as_builder().to_bytes())
+    for u in cp_updated:
+      if u == 0x2e4:  # STEERING_LKA
+        can_updated = True
 
-      torque_cmd = int(cp.vl['STEERING_LKA']['STEER_TORQUE_CMD'])
-      steer_req = bool(cp.vl['STEERING_LKA']['STEER_REQUEST'])
-      steering_pressed = abs(cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']) > STEER_THRESHOLD
+    torque_cmd = int(cp.vl['STEERING_LKA']['STEER_TORQUE_CMD'])
+    steer_req = bool(cp.vl['STEERING_LKA']['STEER_REQUEST'])
+    steering_pressed = abs(cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']) > STEER_THRESHOLD
 
-      sample_ok = None not in [v_ego, angle_offset, torque_cmd] and can_updated
-      sample_ok = sample_ok and (steer_req and not steering_pressed or not steer_req)  # bad sample if engaged and override, but not if disengaged
+    sample_ok = None not in [v_ego, angle_offset, torque_cmd] and can_updated
+    sample_ok = sample_ok and (steer_req and not steering_pressed or not steer_req)  # bad sample if engaged and override, but not if disengaged
 
-      final_torque = torque_cmd if steer_req else eps_torque
+    final_torque = torque_cmd if steer_req else eps_torque
 
-      # creates uninterupted sections of engaged data
-      if sample_ok and abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20:  # also split if there's a break in time
-        data[-1].append({'angle_steers': angle_steers, 'angle_rate': angle_rate, 'v_ego': v_ego,
-                         'angle_offset': angle_offset, 'torque': final_torque, 'time': msg.logMonoTime * 1e-9})
-      elif len(data[-1]):  # if last list has items in it, append new empty section
-        data.append([])
-      last_time = msg.logMonoTime
+    # creates uninterupted sections of engaged data
+    if sample_ok and abs(msg.logMonoTime - last_time) * 1e-9 < 1 / 20:  # also split if there's a break in time
+      data[-1].append({'angle_steers': angle_steers, 'angle_rate': angle_rate, 'v_ego': v_ego,
+                       'angle_offset': angle_offset, 'torque': final_torque, 'time': msg.logMonoTime * 1e-9})
+    elif len(data[-1]):  # if last list has items in it, append new empty section
+      data.append([])
+    last_time = msg.logMonoTime
 
   print('Max seq. len: {}'.format(max([len(line) for line in data])))
   del all_msgs
@@ -115,7 +114,7 @@ def load_and_process_rlogs(lrs, file_name):
   return data
 
 
-def fit_ff_model(use_dir, plot=False):
+def fit_ff_model(lr):
   # TSS2 Corolla looks to be around 0.5 to 0.6
   STEER_DELAY = round(0.12 + 0.2 / DT_CTRL)  # important: needs to be accurate
 
@@ -124,10 +123,7 @@ def fit_ff_model(use_dir, plot=False):
     data = load_processed('processed_data')
   else:
     print('processing')
-    route_dirs = [f for f in os.listdir(use_dir) if '.ini' not in f and f != 'exclude']
-    route_files = [[os.path.join(use_dir, i, f) for f in os.listdir(os.path.join(use_dir, i)) if f != 'exclude' and '.ini' not in f] for i in route_dirs]
-    lrs = [MultiLogIterator(rd, wraparound=False) for rd in route_files]
-    data = load_and_process_rlogs(lrs, file_name='processed_data')
+    data = load_and_process_rlogs(lr, file_name='processed_data')
   print('Max seq. len: {}'.format(max([len(line) for line in data])))
 
   data = [sec for sec in data if len(sec) > DT_CTRL]  # long enough sections
@@ -299,10 +295,8 @@ def fit_ff_model(use_dir, plot=False):
 # plt.show()
 
 
-if __name__ == "__main__":  # TODO: support route names
-  # r = Route("14431dbeedbf3558%7C2020-11-10--22-24-34")
-  # lr = MultiLogIterator(r.log_paths(), wraparound=False)
-  use_dir = os.path.join(dir_name, 'routes')
+if __name__ == '__main__':
+  r = Route(sys.argv[1])
+  lr = MultiLogIterator(r.log_paths(), wraparound=False)
 
-  # lr = MultiLogIterator([os.path.join(use_dir, i) for i in os.listdir(use_dir)], wraparound=False)
-  n = fit_ff_model(use_dir, plot="--plot" in sys.argv)
+  n = fit_ff_model(lr)
