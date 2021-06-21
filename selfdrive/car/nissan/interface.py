@@ -46,7 +46,7 @@ class CarInterface(CarInterfaceBase):
       ret.wheelbase = 2.824
       ret.centerToFront = ret.wheelbase * 0.44
       ret.steerRatio = 17
-  
+
     ret.steerControlType = car.CarParams.SteerControlType.angle
     ret.radarOffCan = True
 
@@ -86,7 +86,7 @@ class CarInterface(CarInterfaceBase):
     return self.CS.out
 
   def apply(self, c):
-    can_sends = self.CC.update(c.enabled, self.CS, self.frame, c.actuators,
+    can_sends = self.CC.update(c.enabled, self, self.frame, c.actuators,
                                c.cruiseControl.cancel, c.hudControl.visualAlert,
                                c.hudControl.leftLaneVisible, c.hudControl.rightLaneVisible,
                                c.hudControl.leftLaneDepart, c.hudControl.rightLaneDepart)

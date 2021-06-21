@@ -537,7 +537,7 @@ class CarInterface(CarInterfaceBase):
 
     pcm_accel = int(clip(c.cruiseControl.accelOverride, 0, 1) * 0xc6)
 
-    can_sends = self.CC.update(c.enabled, self.CS, self.frame,
+    can_sends = self.CC.update(c.enabled, self, self.frame,
                                c.actuators,
                                c.cruiseControl.speedOverride,
                                c.cruiseControl.override,

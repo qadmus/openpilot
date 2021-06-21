@@ -4,9 +4,6 @@ import numpy as np
 from cereal import log
 from common.realtime import DT_CTRL
 from common.numpy_fast import clip, interp
-from selfdrive.car.toyota.values import CarControllerParams
-from selfdrive.car import apply_toyota_steer_torque_limits
-from selfdrive.controls.lib.drive_helpers import get_steer_max
 
 
 class LatControlINDI():
@@ -33,8 +30,6 @@ class LatControlINDI():
     self.K = K
     self.A_K = A - np.dot(K, C)
     self.x = np.array([[0.], [0.], [0.]])
-
-    self.enforce_rate_limit = CP.carName == "toyota"
 
     self._RC = (CP.lateralTuning.indi.timeConstantBP, CP.lateralTuning.indi.timeConstantV)
     self._G = (CP.lateralTuning.indi.actuatorEffectivenessBP, CP.lateralTuning.indi.actuatorEffectivenessV)
@@ -80,8 +75,10 @@ class LatControlINDI():
 
     return self.sat_count > self.sat_limit
 
-  def update(self, active, CS, CP, VM, params, lat_plan):
+  def update(self, active, CI, VM, params, lat_plan):
+    CS = CI.CS.out
     self.speed = CS.vEgo
+
     # Update Kalman filter
     y = np.array([[math.radians(CS.steeringAngleDeg)], [math.radians(CS.steeringRateDeg)]])
     self.x = np.dot(self.A_K, self.x) + np.dot(self.K, y)
@@ -118,18 +115,10 @@ class LatControlINDI():
       if CS.steeringPressed and (delta_u * self.output_steer > 0):
         delta_u = 0
 
-      # Enforce rate limit
-      if self.enforce_rate_limit:
-        steer_max = float(CarControllerParams.STEER_MAX)
-        new_output_steer_cmd = steer_max * (self.delayed_output + delta_u)
-        prev_output_steer_cmd = steer_max * self.output_steer
-        new_output_steer_cmd = apply_toyota_steer_torque_limits(new_output_steer_cmd, prev_output_steer_cmd, prev_output_steer_cmd, CarControllerParams)
-        self.output_steer = new_output_steer_cmd / steer_max
-      else:
-        self.output_steer = self.delayed_output + delta_u
-
-      steers_max = get_steer_max(CP, CS.vEgo)
-      self.output_steer = clip(self.output_steer, -steers_max, steers_max)
+      # Limit torque rate and max
+      new = int(round((self.delayed_output + delta_u) * CI.CC.STEER_MAX))
+      last = int(round(self.output_steer * CI.CC.STEER_MAX))
+      self.output_steer = CI.limit_steer(new, last, 0)
 
       indi_log.active = True
       indi_log.rateSetPoint = float(rate_sp)
@@ -140,6 +129,6 @@ class LatControlINDI():
       indi_log.output = float(self.output_steer)
 
       check_saturation = (CS.vEgo > 10.) and not CS.steeringRateLimited and not CS.steeringPressed
-      indi_log.saturated = self._check_saturation(self.output_steer, check_saturation, steers_max)
+      indi_log.saturated = self._check_saturation(self.output_steer, check_saturation, CI.CC.STEER_MAX)
 
     return float(self.output_steer), 0, indi_log

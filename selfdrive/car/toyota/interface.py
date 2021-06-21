@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 from cereal import car
-from selfdrive.config import Conversions as CV
-from selfdrive.car.toyota.values import Ecu, CAR, TSS2_CAR, NO_DSU_CAR, MIN_ACC_SPEED, PEDAL_HYST_GAP, CarControllerParams
+from selfdrive.car import apply_toyota_steer_torque_limits
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, gen_empty_fingerprint
-from selfdrive.swaglog import cloudlog
 from selfdrive.car.interfaces import CarInterfaceBase
+from selfdrive.car.toyota.values import Ecu, CAR, TSS2_CAR, NO_DSU_CAR, MIN_ACC_SPEED, PEDAL_HYST_GAP, CarControllerParams
+from selfdrive.config import Conversions as CV
+from selfdrive.swaglog import cloudlog
 
 EventName = car.CarEvent.EventName
 
 
 class CarInterface(CarInterfaceBase):
+
+  @staticmethod
+  def limit_steer(new, last, driver):
+    return apply_toyota_steer_torque_limits(new, last, last, CarControllerParams)
+
   @staticmethod
   def compute_gb(accel, speed):
     return float(accel) / CarControllerParams.ACCEL_SCALE
@@ -387,7 +393,7 @@ class CarInterface(CarInterfaceBase):
   # to be called @ 100hz
   def apply(self, c):
 
-    can_sends = self.CC.update(c.enabled, self.CS, self.frame,
+    can_sends = self.CC.update(c.enabled, self, self.frame,
                                c.actuators, c.cruiseControl.cancel,
                                c.hudControl.visualAlert, c.hudControl.leftLaneVisible,
                                c.hudControl.rightLaneVisible, c.hudControl.leadVisible,

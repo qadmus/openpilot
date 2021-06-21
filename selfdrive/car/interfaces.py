@@ -39,6 +39,11 @@ class CarInterfaceBase():
     if CarController is not None:
       self.CC = CarController(self.cp.dbc_name, CP, self.VM)
 
+  # limit steer torque rate & clip [steer units]
+  @staticmethod
+  def limit_steer(new, last, driver):
+    return new
+
   @staticmethod
   def calc_accel_override(a_ego, a_target, v_ego, v_target):
     return 1.

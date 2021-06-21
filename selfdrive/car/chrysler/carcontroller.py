@@ -1,4 +1,4 @@
-from selfdrive.car import apply_toyota_steer_torque_limits
+from selfdrive.car.CarInterfaceBase import limit_steer
 from selfdrive.car.chrysler.chryslercan import create_lkas_hud, create_lkas_command, \
                                                create_wheel_buttons
 from selfdrive.car.chrysler.values import CAR, CarControllerParams
@@ -25,15 +25,14 @@ class CarController():
     # *** compute control surfaces ***
     # steer torque
     new_steer = int(round(actuators.steer * CarControllerParams.STEER_MAX))
-    apply_steer = apply_toyota_steer_torque_limits(new_steer, self.apply_steer_last,
-                                                   CS.out.steeringTorqueEps, CarControllerParams)
+    apply_steer = limit_steer(new_steer, self.apply_steer_last, CS.steeringTorqueEps)
     self.steer_rate_limited = new_steer != apply_steer
 
-    moving_fast = CS.out.vEgo > CS.CP.minSteerSpeed  # for status message
-    if CS.out.vEgo > (CS.CP.minSteerSpeed - 0.5):  # for command high bit
+    moving_fast = CS.vEgo > CS.CP.minSteerSpeed  # for status message
+    if CS.vEgo > (CS.CP.minSteerSpeed - 0.5):  # for command high bit
       self.gone_fast_yet = True
     elif self.car_fingerprint in (CAR.PACIFICA_2019_HYBRID, CAR.PACIFICA_2020, CAR.JEEP_CHEROKEE_2019):
-      if CS.out.vEgo < (CS.CP.minSteerSpeed - 3.0):
+      if CS.vEgo < (CS.CP.minSteerSpeed - 3.0):
         self.gone_fast_yet = False  # < 14.5m/s stock turns off this bit, but fine down to 13.5
     lkas_active = moving_fast and enabled
 
@@ -56,7 +55,7 @@ class CarController():
     if (self.ccframe % 25 == 0):  # 0.25s period
       if (CS.lkas_car_model != -1):
         new_msg = create_lkas_hud(
-            self.packer, CS.out.gearShifter, lkas_active, hud_alert,
+            self.packer, CS.gearShifter, lkas_active, hud_alert,
             self.hud_count, CS.lkas_car_model)
         can_sends.append(new_msg)
         self.hud_count += 1

@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 from cereal import car
 from selfdrive.config import Conversions as CV
-from selfdrive.car.gm.values import CAR, CruiseButtons, \
-                                    AccState
+from selfdrive.car.gm.values import AccState, CAR, CarControllerParams, CruiseButtons
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, gen_empty_fingerprint
 from selfdrive.car.interfaces import CarInterfaceBase
+from selfdrive.car import apply_std_steer_torque_limits
 
 ButtonType = car.CarState.ButtonEvent.Type
 EventName = car.CarEvent.EventName
 
 class CarInterface(CarInterfaceBase):
+
+  @staticmethod
+  def limit_steer(new, last, driver):
+    return apply_std_steer_torque_limits(new, last, driver, CarControllerParams)
 
   @staticmethod
   def compute_gb(accel, speed):
@@ -170,9 +174,7 @@ class CarInterface(CarInterfaceBase):
 
     ret.events = events.to_msg()
 
-    # copy back carState packet to CS
     self.CS.out = ret.as_reader()
-
     return self.CS.out
 
   def apply(self, c):
@@ -184,7 +186,7 @@ class CarInterface(CarInterfaceBase):
     # In GM, PCM faults out if ACC command overlaps user gas.
     enabled = c.enabled and not self.CS.out.gasPressed
 
-    can_sends = self.CC.update(enabled, self.CS, self.frame,
+    can_sends = self.CC.update(enabled, self, self.frame,
                                c.actuators,
                                hud_v_cruise, c.hudControl.lanesVisible,
                                c.hudControl.leadVisible, c.hudControl.visualAlert)
