@@ -4,7 +4,7 @@ from selfdrive.config import Conversions as CV
 from selfdrive.car.gm.values import AccState, CAR, CarControllerParams, CruiseButtons
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, gen_empty_fingerprint
 from selfdrive.car.interfaces import CarInterfaceBase
-from selfdrive.car import apply_std_steer_torque_limits
+from selfdrive.car import limit_steer_rate, limit_steer_driver
 
 ButtonType = car.CarState.ButtonEvent.Type
 EventName = car.CarEvent.EventName
@@ -12,8 +12,9 @@ EventName = car.CarEvent.EventName
 class CarInterface(CarInterfaceBase):
 
   @staticmethod
-  def limit_steer(new, last, driver):
-    return apply_std_steer_torque_limits(new, last, driver, CarControllerParams)
+  def limit_steer(new, last, motor=0., driver=0.):
+    new = steer_limit_rate(new, last, CarControllerParams)
+    return steer_limit_driver(new, driver, CarControllerParams)
 
   @staticmethod
   def compute_gb(accel, speed):

@@ -39,9 +39,10 @@ class CarInterfaceBase():
     if CarController is not None:
       self.CC = CarController(self.cp.dbc_name, CP, self.VM)
 
-  # limit steer torque rate & clip [steer units]
+  # limit steer rate & clip per step of DT_CTRL
+  # units of car torque command
   @staticmethod
-  def limit_steer(new, last, driver):
+  def limit_steer(new, last, motor=0., driver=0.):
     return new
 
   @staticmethod

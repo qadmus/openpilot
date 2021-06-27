@@ -32,19 +32,21 @@ class CarController():
     can_sends = []
 
     # STEER
+    # Apply limits every DT_CTRL step
+    lkas_enabled = enabled and not CS.steerWarning and CS.vEgo > P.MIN_STEER_SPEED
+    if not lkas_enabled:
+      apply_steer = 0
+    else
+      new = int(round(float(actuators.steer * P.STEER_MAX)))
+      apply_steer = CI.limit_steer(new, self.apply_steer_last, driver=CS.steeringTorque)
+      self.steer_rate_limited = actuators.steer != self.apply_steer_last
+
+    # Send steer command every other step
     if (frame % P.STEER_STEP) == 0:
-      lkas_enabled = enabled and not CS.steerWarning and CS.vEgo > P.MIN_STEER_SPEED
-      if lkas_enabled:
-        new_steer = int(round(actuators.steer * P.STEER_MAX))
-        apply_steer = CI.limit_steer(new_steer, self.apply_steer_last, CS.steeringTorque)
-        self.steer_rate_limited = new_steer != apply_steer
-      else:
-        apply_steer = 0
-
-      self.apply_steer_last = apply_steer
       idx = (frame // P.STEER_STEP) % 4
-
+      apply_steer = int(round(self.steer_last * P.STEER_MAX))
       can_sends.append(gmcan.create_steering_control(self.packer_pt, CanBus.POWERTRAIN, apply_steer, idx, lkas_enabled))
+      self.apply_steer_last = apply_steer
 
     # GAS/BRAKE
     # no output if not enabled, but keep sending keepalive messages

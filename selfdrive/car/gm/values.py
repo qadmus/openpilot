@@ -4,18 +4,22 @@ from cereal import car
 from selfdrive.car import dbc_dict
 Ecu = car.CarParams.Ecu
 
-
-STEER_THRESHOLD = 1.0 # Nm
+STEER_THRESHOLD = 50 # 0.5 Nm
 
 class CarControllerParams:
   STEER_MAX = 300 # 3 Nm
-  STEER_STEP = 2  # 50 Hz steer command
-  STEER_DELTA_UP = 7 # 0.857s zero to max
-  STEER_DELTA_DOWN = 17 # 0.353s max to zero
+  STEER_DELTA_UP = 3 # 1.0 seconds zero to max torque # was 3.5
+  STEER_DELTA_DOWN = 8 # 0.375s max to zero torque # was 8.5
+   # Limit max torque when driver opposes
+  STEER_DRIVER_ALLOWANCE = STEER_THRESHOLD
+  # 1 Nm cancels all torque (1 Nm - 0.5 Nm) * 6 = 3 Nm
+  STEER_DRIVER_MULTIPLIER = 6
+  STEER_DRIVER_FACTOR = 1
+
+  STEER_STEP = 2 # 50 Hz steer command
+
   MIN_STEER_SPEED = 3. # 7 mph
-  STEER_DRIVER_ALLOWANCE = 50 # allowed driver torque before start limiting
-  STEER_DRIVER_MULTIPLIER = 4 # weight driver torque heavily
-  STEER_DRIVER_FACTOR = 100 # convert units to Nm
+
   NEAR_STOP_BRAKE_PHASE = 0.5  # m/s, more aggressive braking near full stop
 
   # Takes case of "Service Adaptive Cruise" and "Service Front Camera"
@@ -24,7 +28,7 @@ class CarControllerParams:
   CAMERA_KEEPALIVE_STEP = 100
 
   # pedal lookups, only for Volt
-  MAX_GAS = 3072 # safety limit
+  MAX_GAS = 3072 # accel safety limit
   ZERO_GAS = 2048 # coasts!
   MAX_REGEN = 1404  # slightly less decel than max regen paddle
   MAX_BRAKE = 350 # ~3.5m/s^2, blended regen and friction

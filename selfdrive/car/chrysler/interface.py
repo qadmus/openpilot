@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 from cereal import car
-from selfdrive.car import apply_toyota_steer_torque_limits
 from selfdrive.car.chrysler.values import CAR
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, gen_empty_fingerprint
 from selfdrive.car.interfaces import CarInterfaceBase
 
 
 class CarInterface(CarInterfaceBase):
-  @staticmethod
-  def limit_steer(new, last, driver):
-    return apply_toyota_steer_torque_limits(new, last, last, CarControllerParams)
 
   @staticmethod
   def compute_gb(accel, speed):
