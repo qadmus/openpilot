@@ -2,7 +2,6 @@ from cereal import car
 from common.realtime import DT_CTRL
 from common.numpy_fast import interp
 from selfdrive.config import Conversions as CV
-from selfdrive.car import apply_std_steer_torque_limits
 from selfdrive.car.gm import gmcan
 from selfdrive.car.gm.values import DBC, CanBus, CarControllerParams
 from opendbc.can.packer import CANPacker
@@ -23,27 +22,28 @@ class CarController():
     self.packer_obj = CANPacker(DBC[CP.carFingerprint]['radar'])
     self.packer_ch = CANPacker(DBC[CP.carFingerprint]['chassis'])
 
-  def update(self, enabled, CS, frame, actuators,
+  def update(self, enabled, CI, frame, actuators,
              hud_v_cruise, hud_show_lanes, hud_show_car, hud_alert):
-
+    CS = CI.CS
     P = self.params
 
     # Send CAN commands.
     can_sends = []
 
     # STEER
+    # Apply limits every DT_CTRL step
+    lkas_enabled = enabled and not CS.out.steerWarning and CS.out.vEgo > P.MIN_STEER_SPEED
+    if not lkas_enabled:
+      apply_steer = 0
+    else:
+      new_steer = int(round(float(actuators.steer * P.STEER_MAX)))
+      apply_steer = CI.limit_steer(new_steer, self.apply_steer_last, driver=CS.out.steeringTorque)
+      self.steer_rate_limited = apply_steer != new_steer
+    self.apply_steer_last = apply_steer
+
+    # Send steer command every other step
     if (frame % P.STEER_STEP) == 0:
-      lkas_enabled = enabled and not CS.out.steerWarning and CS.out.vEgo > P.MIN_STEER_SPEED
-      if lkas_enabled:
-        new_steer = int(round(actuators.steer * P.STEER_MAX))
-        apply_steer = apply_std_steer_torque_limits(new_steer, self.apply_steer_last, CS.out.steeringTorque, P)
-        self.steer_rate_limited = new_steer != apply_steer
-      else:
-        apply_steer = 0
-
-      self.apply_steer_last = apply_steer
       idx = (frame // P.STEER_STEP) % 4
-
       can_sends.append(gmcan.create_steering_control(self.packer_pt, CanBus.POWERTRAIN, apply_steer, idx, lkas_enabled))
 
     # GAS/BRAKE
@@ -53,7 +53,7 @@ class CarController():
 
     if not enabled:
       # Stock ECU sends max regen when not enabled.
-      apply_gas = P.MAX_ACC_REGEN
+      apply_gas = P.MAX_REGEN
       apply_brake = 0
     else:
       apply_gas = int(round(interp(final_pedal, P.GAS_LOOKUP_BP, P.GAS_LOOKUP_V)))
