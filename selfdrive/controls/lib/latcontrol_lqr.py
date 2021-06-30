@@ -44,8 +44,10 @@ class LatControlLQR():
 
     return self.sat_count > self.sat_limit
 
-  def update(self, active, CS, CP, VM, params, desired_curvature, desired_curvature_rate):
+  def update(self, active, CI, VM, params, desired_curvature, desired_curvature_rate):
     lqr_log = log.ControlsState.LateralLQRState.new_message()
+    CP = CI.CP
+    CS = CI.CS.out
 
     steers_max = get_steer_max(CP, CS.vEgo)
     torque_scale = (0.45 + CS.vEgo / 60.0)**2  # Scale actuator model with speed
