@@ -13,8 +13,9 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def limit_steer(new, last, motor=0., driver=0.):
-    new = steer_limit_rate(new, last, CarControllerParams)
-    return steer_limit_driver(new, driver, CarControllerParams)
+    new, rate_limited = steer_limit_rate(new, last, CarControllerParams)
+    new, driver_limited = steer_limit_driver(new, driver, CarControllerParams)
+    return new, rate_limited or driver_limited
 
   @staticmethod
   def compute_gb(accel, speed):
