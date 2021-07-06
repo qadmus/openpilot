@@ -108,10 +108,19 @@ def steer_limit_motor(steer, motor, LIMITS):
 
 # Limit steer torque when driver opposes control.
 def steer_limit_driver(steer, driver, LIMITS):
-  min_driver = min(0, -LIMITS.STEER_MAX + (-LIMITS.STEER_DRIVER_ALLOWANCE + driver * LIMITS.STEER_DRIVER_FACTOR) * LIMITS.STEER_DRIVER_MULTIPLIER)
-  max_driver = max(0, LIMITS.STEER_MAX + (LIMITS.STEER_DRIVER_ALLOWANCE + driver * LIMITS.STEER_DRIVER_FACTOR) * LIMITS.STEER_DRIVER_MULTIPLIER)
-  steer = clip(steer, min_driver, max_driver)
-  limited = steer == min_driver or steer == max_driver
+  min_driver = -LIMITS.STEER_MAX + (-LIMITS.STEER_DRIVER_ALLOWANCE + driver * LIMITS.STEER_DRIVER_FACTOR) * LIMITS.STEER_DRIVER_MULTIPLIER
+  max_driver = LIMITS.STEER_MAX + (LIMITS.STEER_DRIVER_ALLOWANCE + driver * LIMITS.STEER_DRIVER_FACTOR) * LIMITS.STEER_DRIVER_MULTIPLIER
+  min_steer = min(min_driver, 0)
+  max_steer = max(max_driver, 0)
+  steer = clip(steer, min_steer, max_steer)
+  limited = steer == min_steer or steer == max_steer
+  return steer, limited
+
+
+# Limit maximum steer torque.
+def steer_limit_max(steer, LIMITS):
+  steer = clip(steer, -LIMITS.STEER_MAX, LIMITS.STEER_MAX)
+  limited = steer == -LIMITS.STEER_MAX or steer == LIMITS.STEER_MAX
   return steer, limited
 
 
