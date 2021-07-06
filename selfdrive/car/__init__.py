@@ -84,6 +84,46 @@ def apply_toyota_steer_torque_limits(apply_torque, apply_torque_last, motor_torq
   return int(round(float(apply_torque)))
 
 
+# Limit steer torque rate up (slower), down (faster).
+def steer_limit_rate(steer, last, LIMITS):
+  if last > 0:
+    min_rate = max(last - LIMITS.STEER_DELTA_DOWN, -LIMITS.STEER_DELTA_UP)
+    max_rate = last + LIMITS.STEER_DELTA_UP
+  else:
+    min_rate = last - LIMITS.STEER_DELTA_UP
+    max_rate = min(last + LIMITS.STEER_DELTA_DOWN, LIMITS.STEER_DELTA_UP)
+  steer = clip(steer, min_rate, max_rate)
+  limited = steer == min_rate or steer == max_rate
+  return steer, limited
+
+
+# Limit steer torque to be near reported motor torque.
+def steer_limit_motor(steer, motor, LIMITS):
+  min_motor = min(motor - LIMITS.STEER_ERROR_MAX, -LIMITS.STEER_ERROR_MAX)
+  max_motor = max(motor + LIMITS.STEER_ERROR_MAX, LIMITS.STEER_ERROR_MAX)
+  steer = clip(steer, min_motor, max_motor)
+  limited = steer == min_motor or steer == max_motor
+  return steer, limited
+
+
+# Limit steer torque when driver opposes control.
+def steer_limit_driver(steer, driver, LIMITS):
+  min_driver = -LIMITS.STEER_MAX + (-LIMITS.STEER_DRIVER_ALLOWANCE + driver * LIMITS.STEER_DRIVER_FACTOR) * LIMITS.STEER_DRIVER_MULTIPLIER
+  max_driver = LIMITS.STEER_MAX + (LIMITS.STEER_DRIVER_ALLOWANCE + driver * LIMITS.STEER_DRIVER_FACTOR) * LIMITS.STEER_DRIVER_MULTIPLIER
+  min_steer = min(min_driver, 0)
+  max_steer = max(max_driver, 0)
+  steer = clip(steer, min_steer, max_steer)
+  limited = steer == min_steer or steer == max_steer
+  return steer, limited
+
+
+# Limit maximum steer torque.
+def steer_limit_max(steer, LIMITS):
+  steer = clip(steer, -LIMITS.STEER_MAX, LIMITS.STEER_MAX)
+  limited = steer == -LIMITS.STEER_MAX or steer == LIMITS.STEER_MAX
+  return steer, limited
+
+
 def crc8_pedal(data):
   crc = 0xFF    # standard init value
   poly = 0xD5   # standard crc8: x8+x7+x6+x4+x2+1

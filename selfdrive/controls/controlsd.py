@@ -238,7 +238,7 @@ class Controls:
     if not self.sm['liveParameters'].valid:
       self.events.add(EventName.vehicleModelInvalid)
 
-    if len(self.sm['radarState'].radarErrors):
+    if len(self.sm['radarState'].radarErrors) or self.sm.rcv_time['radarState'] == 0:
       self.events.add(EventName.radarFault)
     elif not self.sm.valid["pandaState"]:
       self.events.add(EventName.usbError)
@@ -459,7 +459,7 @@ class Controls:
                                                                              lat_plan.psis,
                                                                              lat_plan.curvatures,
                                                                              lat_plan.curvatureRates)
-      actuators.steer, actuators.steeringAngleDeg, lac_log = self.LaC.update(self.active, CS, self.CP, self.VM, params,
+      actuators.steer, actuators.steeringAngleDeg, lac_log = self.LaC.update(self.active, self.CI, self.VM, params,
                                                                              desired_curvature, desired_curvature_rate)
     else:
       lac_log = log.ControlsState.LateralDebugState.new_message()

@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 from cereal import car
 from selfdrive.config import Conversions as CV
-from selfdrive.car.gm.values import CAR, CruiseButtons, \
-                                    AccState
+from selfdrive.car.gm.values import AccState, CAR, CarControllerParams, CruiseButtons
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, gen_empty_fingerprint
 from selfdrive.car.interfaces import CarInterfaceBase
+from selfdrive.car import steer_limit_rate, steer_limit_driver, steer_limit_max
 
 ButtonType = car.CarState.ButtonEvent.Type
 EventName = car.CarEvent.EventName
 
 class CarInterface(CarInterfaceBase):
+
+  @staticmethod
+  def limit_steer(new, last, motor=0., driver=0.):
+    new, rate_limited = steer_limit_rate(new, last, CarControllerParams)
+    new, driver_limited = steer_limit_driver(new, driver, CarControllerParams)
+    new, max_limited = steer_limit_max(new, CarControllerParams)
+    return new, rate_limited or driver_limited or max_limited
 
   @staticmethod
   def compute_gb(accel, speed):
@@ -21,6 +28,10 @@ class CarInterface(CarInterfaceBase):
     ret.carName = "gm"
     ret.safetyModel = car.CarParams.SafetyModel.gm
     ret.enableCruise = False  # stock cruise control is kept off
+    ret.stoppingControl = True
+    ret.startAccel = 0.8
+    ret.steerLimitTimer = 0.4
+    ret.radarTimeStep = 1/15  # GM radar runs at 15Hz instead of standard 20Hz
 
     # GM port is a community feature
     # TODO: make a port that uses a car harness and it only intercepts the camera
@@ -33,22 +44,58 @@ class CarInterface(CarInterfaceBase):
     ret.openpilotLongitudinalControl = ret.enableCamera
     tire_stiffness_factor = 0.444  # not optimized yet
 
-    # Start with a baseline lateral tuning for all GM vehicles. Override tuning as needed in each model section below.
+    # Default lateral tuning.
     ret.minSteerSpeed = 7 * CV.MPH_TO_MS
     ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
     ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.2], [0.00]]
-    ret.lateralTuning.pid.kf = 0.00004   # full torque for 20 deg at 80mph means 0.00007818594
+    ret.lateralTuning.pid.kf = 0.00004  # full torque for 20 deg at 80mph means 0.00007818594
     ret.steerRateCost = 1.0
     ret.steerActuatorDelay = 0.1  # Default delay, not measured yet
 
+    # Default longitudinal tuning.
+    ret.longitudinalTuning.kpBP = [5., 35.]
+    ret.longitudinalTuning.kpV = [2.4, 1.5]
+    ret.longitudinalTuning.kiBP = [0.]
+    ret.longitudinalTuning.kiV = [0.36]
+
     if candidate == CAR.VOLT:
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
-      ret.minEnableSpeed = 18 * CV.MPH_TO_MS
+      ret.minEnableSpeed = 3 * CV.MPH_TO_MS
       ret.mass = 1607. + STD_CARGO_KG
       ret.wheelbase = 2.69
       ret.steerRatio = 15.7
+      tire_stiffness_factor = 0.469 # Stock Michelin Energy Saver A/S
       ret.steerRatioRear = 0.
-      ret.centerToFront = ret.wheelbase * 0.4  # wild guess
+      ret.centerToFront = 0.45 * ret.wheelbase # from Volt Gen 1
+
+      ret.lateralTuning.init('indi')
+      ret.lateralTuning.indi.outerLoopGainBP = [0.]
+      ret.lateralTuning.indi.outerLoopGainV = [80.] # angle
+      ret.lateralTuning.indi.innerLoopGainBP = [0.]
+      ret.lateralTuning.indi.innerLoopGainV = [20.] # rate
+      ret.lateralTuning.indi.timeConstantBP = [0.]
+      ret.lateralTuning.indi.timeConstantV = [0.9]
+      # Subjectively found (mph,efF): (25,4) (35,3) (50,2) (65,1)
+      # m/s: (11.18,4) (15.65,3) (22.35,2) (29.06,1)
+      # Fit R^2 0.9976: 0.000498688 x^2 - 0.118504 x + 6.61549
+      ret.lateralTuning.indi.actuatorEffectivenessBP = [0. * CV.MPH_TO_MS,
+                                                        15. * CV.MPH_TO_MS,
+                                                        25. * CV.MPH_TO_MS,
+                                                        35. * CV.MPH_TO_MS,
+                                                        45. * CV.MPH_TO_MS,
+                                                        55. * CV.MPH_TO_MS,
+                                                        65. * CV.MPH_TO_MS]
+      ret.lateralTuning.indi.actuatorEffectivenessV = [6.62,
+                                                       4.95,
+                                                       3.96,
+                                                       3.08,
+                                                       2.29,
+                                                       1.61,
+                                                       1.02]
+      ret.steerActuatorDelay = 0.2
+
+      ret.longitudinalTuning.kpV = [1.7, 1.3]
+      ret.longitudinalTuning.kiV = [0.36]
 
     elif candidate == CAR.MALIBU:
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
@@ -100,16 +147,6 @@ class CarInterface(CarInterfaceBase):
     # mass and CG position, so all cars will have approximately similar dyn behaviors
     ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront,
                                                                          tire_stiffness_factor=tire_stiffness_factor)
-
-    ret.longitudinalTuning.kpBP = [5., 35.]
-    ret.longitudinalTuning.kpV = [2.4, 1.5]
-    ret.longitudinalTuning.kiBP = [0.]
-    ret.longitudinalTuning.kiV = [0.36]
-
-    ret.startAccel = 0.8
-
-    ret.steerLimitTimer = 0.4
-    ret.radarTimeStep = 0.0667  # GM radar runs at 15Hz instead of standard 20Hz
 
     return ret
 
@@ -170,9 +207,7 @@ class CarInterface(CarInterfaceBase):
 
     ret.events = events.to_msg()
 
-    # copy back carState packet to CS
     self.CS.out = ret.as_reader()
-
     return self.CS.out
 
   def apply(self, c):
@@ -184,7 +219,7 @@ class CarInterface(CarInterfaceBase):
     # In GM, PCM faults out if ACC command overlaps user gas.
     enabled = c.enabled and not self.CS.out.gasPressed
 
-    can_sends = self.CC.update(enabled, self.CS, self.frame,
+    can_sends = self.CC.update(enabled, self, self.frame,
                                c.actuators,
                                hud_v_cruise, c.hudControl.lanesVisible,
                                c.hudControl.leadVisible, c.hudControl.visualAlert)
