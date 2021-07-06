@@ -142,7 +142,8 @@ class LatControlINDI():
       LIMITS = CI.CC.params
       new = (self.delayed_output + delta_u) * LIMITS.STEER_MAX
       last = self.output_steer * LIMITS.STEER_MAX
-      self.output_steer = CI.limit_steer(new, last) / LIMITS.STEER_MAX
+      output, _ = CI.limit_steer(new, last)
+      self.output_steer = output / LIMITS.STEER_MAX
 
       steers_max = get_steer_max(CP, CS.vEgo)
       self.output_steer = clip(self.output_steer, -steers_max, steers_max)
