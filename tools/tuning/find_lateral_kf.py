@@ -27,7 +27,7 @@ from scipy.optimize import curve_fit
 from selfdrive.config import Conversions as CV
 import pickle
 
-STEER_THRESHOLD = 100
+STEER_THRESHOLD = 50
 DT_CTRL = 0.01
 
 old_kf = 0.00004  # for plotting old function compared to new polynomial function
@@ -58,15 +58,24 @@ def load_and_process_rlogs(lr, file_name):
   last_time = 0
   can_updated = False
 
+  # signals = [
+  #   ("STEER_REQUEST", "STEERING_LKA", 0),
+  #   ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
+  #   ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
+  #   ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
+  #   ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
+  #   ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
+  # ]
+  # cp = CANParser("toyota_nodsu_pt_generated", signals, enforce_checks=False)  # todo: auto load dbc from logs
+
   signals = [
-    ("STEER_REQUEST", "STEERING_LKA", 0),
-    ("STEER_TORQUE_CMD", "STEERING_LKA", 0),
-    ("STEER_TORQUE_DRIVER", "STEER_TORQUE_SENSOR", 0),
-    ("STEER_ANGLE", "STEER_TORQUE_SENSOR", 0),
-    ("STEER_ANGLE", "STEER_ANGLE_SENSOR", 0),
-    ("STEER_FRACTION", "STEER_ANGLE_SENSOR", 0),
+    ("LKADriverAppldTrq", "PSCMStatus", 0),
+    ("LKATorqueDelivered", "PSCMStatus", 0),
+    ("LKASteeringCmd", "ASCMLKASteeringCmd", 0)
+    # ("SteeringWheelAngle", "PSCMSteeringAngle", 0),
+    # ("SteeringWheelRate", "PSCMSteeringAngle", 0),
   ]
-  cp = CANParser("toyota_nodsu_pt_generated", signals, enforce_checks=False)  # todo: auto load dbc from logs
+  cp = CANParser("gm_global_a_powertrain", signals, enforce_checks=False)  # todo: auto load dbc from logs
 
   all_msgs = sorted(lr, key=lambda msg: msg.logMonoTime)
 
@@ -75,7 +84,7 @@ def load_and_process_rlogs(lr, file_name):
       v_ego = msg.carState.vEgo
       angle_steers = msg.carState.steeringAngleDeg  # this is offset from can by 1 frame. it's within acceptable margin of error and we get more accuracy for TSS2
       angle_rate = msg.carState.steeringRateDeg
-      eps_torque = msg.carState.steeringTorqueEps
+      eps_torque = 100*msg.carState.steeringTorqueEps
 
     elif msg.which() == 'liveParameters':
       angle_offset = msg.liveParameters.angleOffsetDeg
@@ -85,12 +94,12 @@ def load_and_process_rlogs(lr, file_name):
 
     cp_updated = cp.update_string(msg.as_builder().to_bytes())
     for u in cp_updated:
-      if u == 0x2e4:  # STEERING_LKA
+      if u == 388 or u == 384:  # PSCMStatus
         can_updated = True
 
-    torque_cmd = int(cp.vl['STEERING_LKA']['STEER_TORQUE_CMD'])
-    steer_req = bool(cp.vl['STEERING_LKA']['STEER_REQUEST'])
-    steering_pressed = abs(cp.vl['STEER_TORQUE_SENSOR']['STEER_TORQUE_DRIVER']) > STEER_THRESHOLD
+    torque_cmd = int(cp.vl['ASCMLKASteeringCmd']['LKASteeringCmd'])
+    steer_req = bool(cp.vl['ASCMLKASteeringCmd']['LKASteeringCmd'])
+    steering_pressed = abs(cp.vl['PSCMStatus']['LKADriverAppldTrq']) > STEER_THRESHOLD
 
     sample_ok = None not in [v_ego, angle_offset, torque_cmd] and can_updated
     sample_ok = sample_ok and (steer_req and not steering_pressed or not steer_req)  # bad sample if engaged and override, but not if disengaged
@@ -116,7 +125,7 @@ def load_and_process_rlogs(lr, file_name):
 
 def fit_ff_model(lr):
   # TSS2 Corolla looks to be around 0.5 to 0.6
-  STEER_DELAY = round(0.12 + 0.2 / DT_CTRL)  # important: needs to be accurate
+  STEER_DELAY = round(0.4/DT_CTRL)  # important: needs to be accurate
 
   if os.path.exists('processed_data'):
     print('exists')
@@ -296,7 +305,7 @@ def fit_ff_model(lr):
 
 
 if __name__ == '__main__':
-  r = Route(sys.argv[1])
+  r = Route(sys.argv[1], data_dir="/mnt/f/openpilot-data/2021-05-27--02-24-10--24-sf-to-home")
   lr = MultiLogIterator(r.log_paths(), wraparound=False)
 
   n = fit_ff_model(lr)
